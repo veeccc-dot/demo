@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+
+<title>Parceiro Hub v23.0 (iOS Stable)</title>
+<style>
+    /* =========================================
+       1. 全局基础 (iOS Optimized)
+       ========================================= */
+    :root {
+        --bg-dark: #0a0a0a; --bg-card: #1e1e1e; --bg-card-lighter: #2a2a2a;
+        --color-gold: #FFD700; --color-silver: #C0C0C0; --color-bronze: #CD7F32;
+        --color-green: #00ce52; --color-blue: #007bff; --color-red: #ff4757; --color-orange: #ffa502; 
+        --color-purple: #9b59b6; --color-invite-blue: #2980b9; 
+        --color-epic: #ff0055; --color-legend: #00e5ff;
+        --color-crimson: #d63031;
+        --text-primary: #ffffff; --text-secondary: #888; --border-color: #333;
+        --input-bg: #151515;
+    }
+    
+    * { 
+        box-sizing: border-box; margin: 0; padding: 0; 
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+        outline: none; 
+        /* [iOS优化] 移除点击高亮色块 */
+        -webkit-tap-highlight-color: transparent; 
+        /* [iOS优化] 禁用双击缩放，加速点击响应 */
+        touch-action: manipulation; 
+    }
+    
+    html, body { 
+        height: 100%; width: 100%; 
+        overflow: hidden; /* 锁死body滚动，交给内部容器 */
+        background-color: var(--bg-dark); 
+        color: var(--text-primary); 
+        /* [iOS优化] 防止系统级回弹 */
+        position: fixed; 
+    }
+    
+    body { display: flex; flex-direction: column; }
+    
+    /* [iOS优化] 强制所有可点击元素显示手型，激活iOS点击态 */
+    [onclick], button, .nav-tab-item, .rank-tab, .m-tab { cursor: pointer; }
+
+    #confetti-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+
+    /* =========================================
+       2. 顶部 & 导航 & 吸顶 (Fixed)
+       ========================================= */
+    .top-nav-bar { 
+        background: #0a0a0a; padding: 0 5px; 
+        border-bottom: 1px solid var(--border-color); 
+        flex-shrink: 0; display: flex; height: 50px; 
+        position: relative; z-index: 2000; 
+        /* [iOS优化] 顶部刘海适配 */
+        padding-top: env(safe-area-inset-top);
+        height: calc(50px + env(safe-area-inset-top));
+    }
+    .nav-tab-item { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: var(--text-secondary); position: relative; transition: all 0.2s; height: 100%; }
+    .nav-tab-item.active { color: var(--color-gold); font-size: 14px; font-weight: 800; }
+    .nav-tab-item.active::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 20px; height: 3px; background: var(--color-gold); border-radius: 2px; }
+    
+    .nav-icon-right { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 18px; color: #fff; margin-top: calc(env(safe-area-inset-top) / 2); }
+    .nav-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; background: var(--color-red); border-radius: 50%; border: 1px solid var(--bg-dark); animation: pulse-red 2s infinite; }
+
+    .viewport-container { flex: 1; overflow: hidden; position: relative; width: 100%; background: var(--bg-dark); }
+    
+    /* [iOS优化] 滚动容器核心 */
+    .view-module { 
+        display: none; 
+        height: 100%; 
+        width: 100%; 
+        overflow-y: auto; 
+        overflow-x: hidden; 
+        /* [iOS优化] 惯性滚动 */
+        -webkit-overflow-scrolling: touch; 
+        /* [iOS优化] 底部安全区，防止被黑条遮挡 */
+        padding-bottom: calc(60px + env(safe-area-inset-bottom)); 
+        overscroll-behavior-y: none; 
+    }
+    .view-module.active { display: block; animation: fadeIn 0.2s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* 吸顶容器 */
+    .sticky-header-container { 
+        position: -webkit-sticky; /* Safari 需要 */
+        position: sticky; 
+        top: 0; 
+        z-index: 999; 
+        background-color: #0a0a0a; 
+        border-bottom: 1px solid #222; 
+        box-shadow: 0 4px 20px rgba(0,0,0,0.9); 
+        padding-bottom: 15px; 
+        margin-bottom: 15px;
+        /* [iOS优化] 移除 3D 变换，防止点击穿透 */
+    }
+
+    /* Modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; display: none; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.3s; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+    .modal-overlay.active { display: flex; opacity: 1; }
+    .modal-card { background: #1e1e1e; width: 85%; max-width: 340px; border-radius: 16px; border: 1px solid #333; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.5); transform: scale(0.9); transition: transform 0.3s; }
+    .modal-overlay.active .modal-card { transform: scale(1); }
+    .modal-header { background: linear-gradient(90deg, #d4af37, #f1c40f); padding: 15px; color: #000; font-weight: 800; text-align: center; font-size: 16px; }
+    .modal-body { padding: 20px; max-height: 60vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .benefit-item { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #333; }
+    .benefit-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .b-title { color: var(--color-gold); font-size: 13px; font-weight: bold; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .b-desc { color: #ccc; font-size: 11px; line-height: 1.4; }
+    .btn-close-modal { width: 100%; padding: 12px; background: #333; color: #fff; border: none; font-weight: bold; cursor: pointer; border-top: 1px solid #333; }
+
+    /* Fund Input */
+    .amt-input-wrapper { background: #111; border: 1px solid #333; border-radius: 8px; padding: 10px; display: flex; align-items: center; margin-bottom: 10px; }
+    .amt-symbol { color: var(--color-gold); font-weight: bold; margin-right: 10px; font-size: 18px; }
+    .amt-input { background: transparent; border: none; color: #fff; font-size: 24px; font-weight: bold; width: 100%; outline: none; }
+    .amt-all-btn { color: var(--color-blue); font-size: 12px; font-weight: bold; white-space: nowrap; margin-left: 10px; cursor: pointer; }
+    .amt-warning { color: var(--color-crimson); font-size: 11px; margin-bottom: 15px; display: none; background: rgba(214, 48, 49, 0.1); padding: 8px; border-radius: 4px; border: 1px dashed var(--color-crimson); }
+    .amt-modal-footer { display: flex; gap: 10px; }
+    .btn-cancel { flex: 1; background: #333; color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: bold; }
+    .btn-confirm { flex: 1; background: var(--color-gold); color: #000; border: none; padding: 12px; border-radius: 8px; font-weight: bold; }
+
+    /* General */
+    .section-label { font-size: 14px; font-weight: 700; color: #fff; margin: 25px 20px 15px; border-left: 3px solid var(--color-green); padding-left: 10px; display: flex; align-items: center; gap: 8px; }
+    .sticky-header-container .section-label { margin-top: 15px; } 
+    .help-icon { width: 18px; height: 18px; border: 1px solid #666; color: #888; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; cursor: pointer; }
+    .empty-state-box { display: none; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; text-align: center; color: var(--text-secondary); }
+
+    /* =========================================
+       3. 模块: 邀请 (Invite)
+       ========================================= */
+    .invite-links-container { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
+    .link-copy-box { background: var(--bg-card); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); }
+    .link-input-group { display: flex; gap: 10px; margin-top: 8px; }
+    .link-input { flex: 1; background: var(--input-bg); border: 1px solid #333; color: var(--color-gold); padding: 10px 12px; border-radius: 8px; font-size: 13px; outline: none; -webkit-user-select: text; }
+    .btn-copy-icon { width: 42px; background: linear-gradient(90deg, var(--color-green), #00a844); border: none; border-radius: 8px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+    .share-matrix { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #333; }
+    .share-btn { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; }
+    .sb-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; transition: transform 0.2s; }
+    .sb-icon:active { transform: scale(0.9); }
+    .sb-label { font-size: 10px; color: #888; }
+    .sb-tg { background: #229ED9; } .sb-ws { background: #25D366; } .sb-fb { background: #1877F2; } .sb-kw { background: #FF8F00; } .sb-ins { background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); }
+
+    /* 收益计算器 */
+    .calc-card { background: linear-gradient(145deg, #1e1e1e, #252525); margin: 0 20px 20px; border-radius: 12px; padding: 20px 15px; border: 1px solid #444; }
+    .calc-header { font-size: 13px; font-weight: bold; color: var(--color-gold); margin-bottom: 15px; text-align: center; }
+    .calc-row { margin-bottom: 15px; }
+    .calc-label { font-size: 11px; color: #aaa; display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .calc-slider { 
+        -webkit-appearance: none; width: 100%; height: 6px; 
+        background: #333; border-radius: 3px; outline: none; 
+        position: relative; z-index: 5; cursor: pointer; 
+    }
+    .calc-slider::-webkit-slider-thumb { 
+        -webkit-appearance: none; appearance: none; 
+        width: 24px; height: 24px; /* [iOS优化] 加大触控区 */
+        border-radius: 50%; background: var(--color-gold); 
+        cursor: pointer; box-shadow: 0 0 10px rgba(255, 215, 0, 0.4); 
+    }
+    .calc-result-box { text-align: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #333; }
+    .calc-res-label { font-size: 11px; color: #888; }
+    .calc-res-val { font-size: 24px; font-weight: 800; color: var(--color-green); margin-top: 4px; text-shadow: 0 0 10px rgba(0, 206, 82, 0.3); }
+
+    .boost-banner { margin: 0 20px 12px; background: linear-gradient(90deg, rgba(255, 71, 87, 0.15), rgba(255, 165, 2, 0.15)); border: 1px solid rgba(255, 71, 87, 0.3); border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #ff4757; }
+    .boost-timer { font-family: monospace; font-weight: bold; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: #fff; }
+
+    .stats-dashboard { padding: 0 20px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-dash-card { background: var(--bg-card); padding: 15px 12px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 5px; height: 80px; justify-content: center; min-width: 0; }
+    .stat-label { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+    .stat-value { font-size: 17px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stat-value.money { color: var(--color-gold); }
+    .pulse-text { animation: pulseText 0.5s; color: var(--color-green) !important; }
+    @keyframes pulseText { 50% { transform: scale(1.1); } }
+
+    .mission-tabs { display: flex; padding: 0 20px 15px; gap: 10px; }
+    .m-tab { flex: 1; padding: 10px; background: var(--bg-card-lighter); border: 1px solid #333; border-radius: 8px; text-align: center; font-size: 12px; font-weight: bold; color: #888; cursor: pointer; transition: all 0.2s; }
+    .m-tab.active.tab-invite { background: linear-gradient(135deg, rgba(41, 128, 185, 0.2), rgba(52, 152, 219, 0.2)); border-color: var(--color-invite-blue); color: #fff; }
+    .m-tab.active.tab-turnover { background: linear-gradient(135deg, rgba(155, 89, 182, 0.2), rgba(52, 152, 219, 0.2)); border-color: var(--color-purple); color: #fff; }
+    .mission-container { display: none; } .mission-container.active { display: block; }
+    
+    .milestone-desc { padding: 0 20px; font-size: 12px; color: #ccc; line-height: 1.5; margin-bottom: 8px; }
+    /* 统一说明框样式 */
+    .rule-highlight { display: block; padding: 10px 12px; border-radius: 8px; font-size: 11px; line-height: 1.5; margin-top: 8px; background: rgba(255,255,255,0.03); }
+    .rule-highlight.blue { color: #aed6f1; background: rgba(41, 128, 185, 0.15); border-left: 3px solid var(--color-invite-blue); }
+    .rule-highlight.purple { color: #d7bde2; background: rgba(155, 89, 182, 0.15); border-left: 3px solid var(--color-purple); }
+    .rule-highlight.gold { color: #ffd700; background: rgba(255, 215, 0, 0.15); border-left: 3px solid var(--color-gold); }
+
+    .milestone-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 0 20px 20px; width: 100%; max-width: 100vw; scrollbar-width: none; } 
+    .milestone-scroll::-webkit-scrollbar { display: none; }
+    
+    .milestone-card { flex: 0 0 auto; width: 165px; min-width: 165px; background: linear-gradient(145deg, #1e1e1e, #252525); border: 1px solid #333; border-radius: 14px; padding: 15px 10px; text-align: center; position: relative; transition: all 0.4s ease; display: flex; flex-direction: column; justify-content: space-between; min-height: 190px; overflow: hidden; z-index: 0; }
+    
+    .ms-icon { font-size: 22px; margin-bottom: 5px; }
+    .ms-target { font-size: 13px; color: #fff; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; }
+    .ms-val { font-size: 11px; color: #888; margin-bottom: 5px; min-height: 28px; display: flex; align-items: center; justify-content: center; white-space: nowrap; }
+    .ms-val b { color: #fff; }
+    .ms-val span { color: var(--color-gold); font-weight: bold; }
+    
+    .bonus-corner { position: absolute; top: 6px; right: 6px; background: #ff4757; color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 800; box-shadow: 0 2px 5px rgba(255, 71, 87, 0.4); z-index: 10; animation: floatBonus 2s infinite ease-in-out; }
+    @keyframes floatBonus { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+    @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.4); } 70% { box-shadow: 0 0 0 4px rgba(255, 71, 87, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); } }
+
+    .tier-total-tag { font-size: 9px; color: var(--color-gold); background: rgba(255, 215, 0, 0.15); border: 1px solid rgba(255, 215, 0, 0.3); padding: 2px 6px; border-radius: 4px; margin-bottom: 8px; display: inline-block; white-space: nowrap; }
+    
+    /* 节点式进度条 */
+    .node-progress-wrapper { position: relative; width: 100%; height: 6px; margin: 10px 0; pointer-events: none; z-index: 1; }
+    .node-progress-track { width: 100%; height: 100%; background: #333; border-radius: 3px; position: absolute; top: 0; left: 0; }
+    .node-progress-fill { height: 100%; border-radius: 3px; background: var(--color-bronze); width: 0%; transition: width 0.5s ease; position: absolute; top: 0; left: 0; z-index: 1; }
+    .node-dots { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: space-between; align-items: center; z-index: 2; padding: 0 2px; }
+    .node-dot { width: 4px; height: 4px; background: #555; border-radius: 50%; }
+    .node-dot.active { background: #fff; box-shadow: 0 0 4px #fff; }
+    .bronze-theme .node-progress-fill { background: var(--color-bronze); } .silver-theme .node-progress-fill { background: var(--color-silver); } .gold-theme .node-progress-fill { background: var(--color-gold); } .diamond-theme .node-progress-fill { background: var(--color-epic); } .partner-theme .node-progress-fill { background: var(--color-legend); }
+
+    .loop-progress-bar { width:100%; height:4px; background:#333; border-radius:2px; margin:6px 0; overflow:hidden; }
+    .loop-progress-fill { height:100%; border-radius:2px; transition: width 0.5s ease; }
+    .invite-theme .loop-progress-fill { background: var(--color-invite-blue); }
+    .progress-text { font-size: 10px; color: #ccc; margin-bottom: 8px; display: flex; justify-content: space-between; width: 100%; }
+    .next-goal-text { font-size: 9px; color: #666; text-align: center; margin-bottom: 5px; }
+    
+    /* 按钮 [iOS优化] */
+    .btn-claim { 
+        width: 100%; padding: 8px 0; border-radius: 20px; border: none; 
+        font-weight: bold; font-size: 11px; cursor: pointer; 
+        background: #333; color: #888; margin-top: auto; 
+        transition: all 0.2s; 
+        position: relative; 
+        z-index: 10 !important; 
+        /* [iOS优化] 确保按钮点击区 */
+        -webkit-appearance: none;
+    }
+    .invite-theme .btn-claim.ready { background: linear-gradient(90deg, #3498db, #2980b9); color: #fff; } 
+    .bronze-theme .btn-claim.ready { background: linear-gradient(90deg, #e67e22, #d35400); color: #fff; }
+    .btn-claim.ready { animation: pulseBtn 2s infinite; }
+    @keyframes pulseBtn { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+    .commission-box { padding: 0 20px 20px; }
+    .tree-visual { background: var(--bg-card); border: 1px solid #333; border-radius: 12px; padding: 20px 0; margin-bottom: 10px; display: flex; justify-content: center; }
+    .rate-grid { display: flex; gap: 8px; }
+    .rate-card { flex: 1; background: var(--bg-card-lighter); border: 1px solid #333; border-radius: 8px; padding: 10px 5px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .rc-level { font-size: 10px; font-weight: bold; margin-bottom: 4px; padding: 2px 6px; border-radius: 4px; color: #000; }
+    .rc-title { font-size: 10px; color: #888; margin-bottom: 2px; }
+    .rc-val { font-size: 16px; font-weight: 800; color: #fff; }
+    .l1-tag { background: var(--color-green); } .l2-tag { background: var(--color-silver); } .l3-tag { background: var(--color-bronze); }
+
+    .leaderboard-container { padding: 0 20px 40px; display: flex; flex-direction: column; gap: 8px; }
+    .rank-user-status { background: #222; border: 1px solid #444; border-radius: 8px; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+    .rus-left { display: flex; flex-direction: column; gap: 2px; }
+    .rus-val { color: var(--color-gold); font-weight: bold; font-size: 12px; }
+    .rus-right { text-align: right; color: #888; }
+    
+    .rank-tabs { display: flex; gap: 10px; margin-bottom: 5px; }
+    .rank-tab { flex: 1; text-align: center; padding: 6px; font-size: 12px; color: #888; border-radius: 6px; background: #222; cursor: pointer; position: relative; z-index: 10; transition: all 0.2s; border: 1px solid #333; }
+    .rank-tab.active { background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 2, 0.2)); color: #fff; border-color: var(--color-gold); font-weight: bold; }
+    .rank-timer-display { text-align: center; font-size: 13px; color: #888; margin: 15px 0 0; }
+    
+    #rankListContent { display: flex; flex-direction: column; gap: 10px; transition: opacity 0.3s ease-in-out; min-height: 400px; }
+    .rank-card { background: var(--bg-card); border-radius: 10px; border: 1px solid #333; transition: all 0.2s; }
+    
+    .rank-card.top-rank { border-color: #444; background: linear-gradient(145deg, #1e1e1e, #252525); display: flex; align-items: center; justify-content: space-between; }
+    .rank-card.top-rank.r1 { padding: 18px 15px; border: 1px solid rgba(255, 215, 0, 0.3); box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+    .rank-card.top-rank.r2 { padding: 15px; border-color: #555; }
+    .rank-card.top-rank.r3 { padding: 12px 15px; border-color: #444; }
+    .rank-card.top-rank .rank-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+    .rank-card.top-rank.r1 .rank-badge { font-size: 32px; } .rank-card.top-rank.r1 .rank-name { font-size: 16px; }
+    .rank-card.top-rank.r2 .rank-badge { font-size: 28px; } .rank-card.top-rank.r2 .rank-name { font-size: 15px; }
+    .rank-card.top-rank.r3 .rank-badge { font-size: 24px; } .rank-card.top-rank.r3 .rank-name { font-size: 14px; }
+    .rank-card.top-rank .rank-badge { width: 30px; text-align: center; flex-shrink: 0; text-shadow: none; } 
+    .rank-user-col { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+    .rank-card.top-rank .rank-name { font-weight: 800; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-font-smoothing: antialiased; }
+    .extra-bonus-badge { background: linear-gradient(90deg, #FDB931, #FFD700, #FDB931); color: #000; font-size: 10px; font-weight: 900; padding: 3px 8px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.5); white-space: nowrap; border: 1px solid rgba(255,255,255,0.4); display: inline-block; width: fit-content; }
+    .rank-card.top-rank .rank-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; flex-shrink: 0; margin-left: 10px; }
+    .rank-card.compact { padding: 8px 15px; min-height: 40px; display: flex; align-items: center; justify-content: space-between; }
+    .rank-card.compact .rank-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .rank-card.compact .rank-badge { font-size: 12px; color: #666; width: 24px; text-align: center; font-weight: bold; background: #111; border-radius: 4px; padding: 2px 0; flex-shrink: 0; }
+    .rank-card.compact .rank-name { font-size: 12px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank-card.compact .rank-right { text-align: right; flex-shrink: 0; margin-left: 10px; }
+    .rank-label-tiny { font-size: 9px; color: #555; margin-bottom: 1px; }
+    .rank-val { font-size: 15px; color: var(--color-gold); font-weight: bold; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .rank-card.compact .rank-val { font-size: 12px; color: #ccc; font-weight: normal; }
+    .rank-label-small { font-size: 10px; color: #666; margin-bottom: 2px; }
+
+    /* =========================================
+       4. 模块二：统计 (Stats)
+       ========================================= */
+    .hero-section { padding: 30px 20px; background: linear-gradient(170deg, #151515 0%, #0a0a0a 100%); text-align: center; border-bottom: 1px solid #333; }
+    .balance-wrap .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+    .balance-wrap .amount { font-weight: 800; color: var(--color-gold); line-height: 1; margin: 5px 0 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+    
+    .hero-actions { display: flex; gap: 10px; padding: 0 10px; }
+    .btn-action { flex: 1; padding: 12px 0; border-radius: 30px; font-weight: bold; border: none; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn-withdraw { background: linear-gradient(90deg, var(--color-green), #00a844); color: #fff; box-shadow: 0 4px 15px rgba(0, 206, 82, 0.3); }
+    .btn-transfer { background: rgba(0,0,0,0.5); border: 1px solid var(--color-blue); color: var(--color-blue); }
+    .btn-action:active { transform: scale(0.98); opacity: 0.9; }
+    .btn-action:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+
+    .limit-info-text { font-size: 11px; color: #666; margin-top: -10px; margin-bottom: 15px; display: flex; gap: 10px; justify-content: center; }
+
+    .agent-level-card { margin: 20px 20px; background: linear-gradient(135deg, #1a1a1a, #2a2a2a); border: 1px solid #d4af37; border-radius: 12px; padding: 15px; position: relative; overflow: hidden; }
+    .al-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .al-title { color: var(--color-gold); font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+    .al-tag { background: #444; font-size: 9px; padding: 2px 6px; border-radius: 4px; color: #fff; }
+    .al-info-icon { font-size: 12px; color: #aaa; cursor: pointer; border: 1px solid #555; padding: 2px 6px; border-radius: 10px; }
+    .al-progress-text { font-size: 10px; color: #888; display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .al-bar-bg { width: 100%; height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+    .al-bar-fill { width: 30%; height: 100%; background: linear-gradient(90deg, #d4af37, #f1c40f); border-radius: 3px; }
+    .al-next-tip { font-size: 9px; color: #666; margin-top: 8px; text-align: right; }
+
+    .chart-box-enhanced { margin: 0 20px 20px; background: var(--bg-card); padding: 15px; border-radius: 16px; border: 1px solid #333; position: relative; }
+    .svg-container { width: 100%; height: 100px; position: relative; }
+    .svg-chart { width: 100%; height: 100%; overflow: visible; }
+    .line-path { fill: none; stroke: var(--color-gold); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: drawLine 2s ease-out forwards; }
+    .area-path { fill: url(#gradientGold); stroke: none; opacity: 0.3; }
+    .chart-dot { fill: var(--color-gold); stroke: #fff; stroke-width: 1px; }
+    @keyframes drawLine { to { stroke-dashoffset: 0; } }
+    .trend-bars { display: flex; align-items: flex-end; justify-content: space-between; height: 80px; padding-top: 10px; gap: 8px; }
+    .t-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .t-date { font-size: 9px; color: #555; }
+    
+    .chart-card-container { padding: 0 20px 20px; } 
+    .chart-card { background: var(--bg-card); padding: 20px; border-radius: 16px; border: 1px solid #333; }
+    .donut-wrapper { display: flex; align-items: center; justify-content: space-between; gap: 10px; } 
+    .donut-chart { width: 110px; height: 110px; border-radius: 50%; position: relative; flex-shrink: 0; background: conic-gradient(var(--color-green) 0% 25%, var(--color-blue) 25% 50%, var(--color-orange) 50% 75%, var(--color-epic) 75% 100%); }
+    .donut-inner { position: absolute; top: 10px; left: 10px; right: 10px; bottom: 10px; background: var(--bg-card); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .donut-total-label { font-size: 10px; color: #888; } .donut-total-val { font-size: 16px; font-weight: 800; color: #fff; }
+    .chart-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; max-width: 60%; }
+    .legend-item { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+    .legend-info { display: flex; align-items: center; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .legend-val { font-weight: bold; }
+
+    .history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 20px 20px; width: 100%; }
+    .history-card { background: var(--bg-card-lighter); padding: 15px 12px; border-radius: 12px; border: 1px solid #333; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+    .history-card.gold-highlight { grid-column: 1 / -1; background: linear-gradient(90deg, #2a2a2a, #222); border-color: var(--color-gold); }
+    .h-label { font-size: 11px; color: #888; margin-bottom: 5px; }
+    .h-val { font-size: 15px; font-weight: 700; color: #fff; word-break: break-all; }
+    .h-val.highlight { color: var(--color-gold); font-size: 18px; }
+    .h-val.gray { color: #666; font-size: 14px; }
+
+    .sub-grid-container { padding: 0 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+    .sub-stat-box { background: var(--bg-card); padding: 15px 12px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+    .sub-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+    .sub-num { font-size: 16px; font-weight: 800; color: #fff; }
+    .sub-num.green { color: var(--color-green); }
+    .sub-num.red { color: var(--color-crimson); }
+    .sub-num.loss-highlight { color: var(--color-crimson); text-shadow: 0 0 10px rgba(214, 48, 49, 0.2); }
+    
+    .wake-up-section { padding: 0 20px 20px; }
+    .wake-up-btn { width: 100%; padding: 12px; background: #333; border: 1px solid var(--color-gold); color: var(--color-gold); border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .wake-up-btn:active { background: rgba(255, 215, 0, 0.1); transform: scale(0.98); }
+
+    /* =========================================
+       5. 模块: 财务
+       ========================================= */
+    .date-filter-box { padding: 20px; background: var(--bg-card); border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; } 
+    .date-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } 
+    .date-field { display: flex; flex-direction: column; gap: 5px; } 
+    .date-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; } 
+    .date-input { background: var(--input-bg); border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 6px; font-size: 13px; outline: none; min-width: 0; } 
+    .btn-filter { background: var(--color-blue); color: #fff; border: none; padding: 10px 40px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; transition: all 0.2s; width: auto; align-self: center; margin-top: 10px; }
+    .btn-filter:active { transform: scale(0.98); opacity: 0.8; }
+    
+    .finance-list { padding: 15px 20px; display: flex; flex-direction: column; gap: 12px; }
+    .comm-card { background: var(--bg-card); border-radius: 12px; padding: 12px 15px; border: 1px solid #333; position: relative; width: 100%; }
+    .cc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .cc-title { font-size: 13px; font-weight: 600; color: #fff; }
+    .cc-user { font-size: 11px; color: #888; margin-top: 3px; display: flex; align-items: center; }
+    .cc-amount { font-size: 15px; font-weight: bold; }
+    .cc-status-row { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px; }
+    .status-badge { font-size: 11px; font-weight: bold; display: flex; align-items: center; gap: 4px; }
+    .status-desc { font-size: 10px; color: #666; }
+    .detail-row { font-size: 10px; color: #555; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #333; display: flex; justify-content: space-between; }
+    .st-pending .cc-amount { color: var(--color-orange) !important; } .st-pending .status-badge { color: var(--color-orange) !important; } .st-pending .countdown { font-family: monospace; background: rgba(255, 165, 2, 0.15); padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
+    .st-success .cc-amount { color: var(--color-green) !important; } .st-success .status-badge { color: var(--color-green) !important; }
+    .st-fail { border-color: rgba(255, 71, 87, 0.3); background: linear-gradient(145deg, #1f1212, #1e1e1e); } .st-fail .cc-amount { color: #666 !important; text-decoration: line-through; } .st-fail .status-badge { color: var(--color-red) !important; }
+    .st-withdraw .cc-amount { color: #fff !important; } .st-withdraw.success .status-badge { color: var(--color-green); } .st-withdraw.fail .status-badge { color: var(--color-red); } .st-withdraw.fail .cc-amount { text-decoration: line-through; color: #888 !important; }
+    .st-bet .cc-amount { color: #fff !important; } .st-bet .cc-status-row { margin-bottom: 0; } .st-bet .detail-row { border-top: 1px solid #333; padding-top: 8px; margin-top: 8px; }
+    .profit-positive { color: var(--color-green); } .profit-negative { color: var(--color-red); }
+    .t-date { font-size: 9px; color: #555; }
+
+    /* Sticky Headers */
+    .hero-section-sticky { padding: 20px 20px 10px; background: #0a0a0a; border-bottom: 1px solid #333; position: -webkit-sticky; position: sticky; top: 0; z-index: 800; box-shadow: 0 4px 15px rgba(0,0,0,0.6); }
+
+    .toast-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: rgba(0,0,0,0.95); color: #fff; padding: 20px 40px; border-radius: 12px; font-size: 16px; font-weight: bold; pointer-events: none; opacity: 0; transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 10px 40px rgba(0,0,0,0.8); z-index: 2147483647; text-align: center; width: max-content; max-width: 80%; } 
+    .toast-box.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+</style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<div class="toast-box" id="toastMsg"><span id="toastText">操作成功</span></div>
+
+<div id="amountModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header" id="amtModalTitle">资金操作</div>
+        <div class="modal-body">
+            <div class="amt-input-wrapper">
+                <span class="amt-symbol">R$</span>
+                <input type="number" class="amt-input" id="fundAmount" placeholder="0.00" inputmode="decimal" min="0">
+                <span class="amt-all-btn" onclick="setAllAmount()">全部</span>
+            </div>
+            <div class="amt-warning" id="amtWarning">⚠️ 转入游戏账户需要满足1倍打码才可以提现</div>
+            <div class="limit-info-text" style="justify-content: flex-start; margin-bottom:0;">当前余额: <span style="color:#fff; margin-left:4px;" id="modalBalance">0.00</span></div>
+            <div style="height:20px;"></div>
+            <div class="amt-modal-footer">
+                <button class="btn-cancel" onclick="closeAmountModal()">取消</button>
+                <button class="btn-confirm" onclick="confirmFundAction()">确认</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="benefitsModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">🏆 代理权益说明</div>
+        <div class="modal-body">
+            <div class="benefit-item">
+                <div class="b-title">👶 普通代理 <span style="font-size:10px; background:#333; padding:1px 4px; border-radius:3px;">初始</span></div>
+                <div class="b-desc">基础佣金权限，无额外特权。</div>
+            </div>
+            <div class="benefit-item">
+                <div class="b-title">🥉 初级代理 <span style="font-size:10px; background:var(--color-bronze); color:#000; padding:1px 4px; border-radius:3px;">达标</span></div>
+                <div class="b-desc">每周邀请前10人额外1%奖金 + 1V1专属客服 + 每日提现额度提升。</div>
+            </div>
+            <div class="benefit-item">
+                <div class="b-title">🥈 中级代理 <span style="font-size:10px; background:var(--color-silver); color:#000; padding:1px 4px; border-radius:3px;">进阶</span></div>
+                <div class="b-desc">每周邀请前30人额外1%奖金 + 提现额度再次提升。</div>
+            </div>
+            <div class="benefit-item">
+                <div class="b-title">🥇 金牌合伙人 <span style="font-size:10px; background:var(--color-gold); color:#000; padding:1px 4px; border-radius:3px;">顶级</span></div>
+                <div class="b-desc">每周邀请前50人额外1%奖金 + 快速提现特权 + 每日最高提现额度。</div>
+            </div>
+            <div style="margin-top:15px; padding-top:10px; border-top:1px solid #333; font-size:10px; color:#666;">
+                * 注：每周邀请额外奖金按 1人 = R$ 5,00 计算
+            </div>
+        </div>
+        <button class="btn-close-modal" onclick="toggleBenefitsModal()">关闭</button>
+    </div>
+</div>
+
+<header class="top-nav-bar">
+    <div class="nav-tab-item active" onclick="switchModule('invite')" id="tab-invite">邀请</div>
+    <div class="nav-tab-item" onclick="switchModule('stats')" id="tab-stats">统计</div>
+    <div class="nav-tab-item" onclick="switchModule('rank')" id="tab-rank">排行榜</div>
+    <div class="nav-tab-item" onclick="switchModule('finance')" id="tab-finance">财务</div>
+    <div class="nav-icon-right" onclick="checkCSPrivilege()">🎧<div class="nav-dot"></div></div>
+</header>
+
+<div class="viewport-container">
+
+    <div id="module-invite" class="view-module active">
+        <div class="sticky-header-container">
+            <div class="section-label">邀请合作伙伴</div>
+            <div class="boost-banner"><div>⚡ <b>限时邀请额外奖金</b>: 前72h邀请奖励 <span style="color:#fff; background:#ff4757; padding:0 4px; border-radius:2px;">+20%</span></div><div class="boost-timer" id="boostTimer">23:59:59</div></div>
+            <div class="invite-links-container">
+                <div class="link-copy-box">
+                    <div style="font-size:11px; color:#888;">您的专属链接</div>
+                    <div class="link-input-group">
+                        <input type="text" class="link-input" value="https://game.com/u/8888" readonly id="link-web">
+                        <button class="btn-copy-icon" onclick="copyInput('link-web')">📋</button>
+                    </div>
+                    <div class="share-matrix">
+                        <div class="share-btn" onclick="copyShareLink('tg')"><div class="sb-icon sb-tg">✈️</div><div class="sb-label">TG</div></div>
+                        <div class="share-btn" onclick="copyShareLink('ws')"><div class="sb-icon sb-ws">💬</div><div class="sb-label">WS</div></div>
+                        <div class="share-btn" onclick="copyShareLink('fb')"><div class="sb-icon sb-fb">f</div><div class="sb-label">FB</div></div>
+                        <div class="share-btn" onclick="copyShareLink('kw')"><div class="sb-icon sb-kw">🎬</div><div class="sb-label">KWAI</div></div>
+                        <div class="share-btn" onclick="copyShareLink('ins')"><div class="sb-icon sb-ins">📷</div><div class="sb-label">INS</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-label">今日推广概览</div>
+        <div class="real-data-container">
+            <div class="stats-dashboard">
+                <div class="stat-dash-card"><div class="stat-label">访问量</div><div class="stat-value" id="inv-val-visits">1.240</div></div>
+                <div class="stat-dash-card"><div class="stat-label">充值人数</div><div class="stat-value" id="inv-val-recharge">85</div></div>
+                <div class="stat-dash-card"><div class="stat-label">待结算奖金</div><div class="stat-value money" id="inv-val-bonus-pending">R$ 55,00</div></div>
+                <div class="stat-dash-card"><div class="stat-label">已获得奖金</div><div class="stat-value money" id="inv-val-bonus-paid">R$ 120,00</div></div>
+            </div>
+        </div>
+
+        <div class="section-label">双重奖励任务 <i class="help-icon" onclick="alert('点击查看详情')">?</i></div>
+        <div class="mission-tabs real-data-container">
+            <div class="m-tab active tab-invite" id="mt-invite" onclick="switchMissionTab('invite')">👥 邀请任务</div>
+            <div class="m-tab" id="mt-turnover" onclick="switchMissionTab('turnover')">💰 团队投注任务</div>
+        </div>
+
+        <div id="mc-invite" class="mission-container active real-data-container">
+            <div class="milestone-desc">
+                推荐好友首充满 <b>R$ 30</b> 并游戏，您即可获得 <b>R$ 5</b> 现金奖励！
+                <div class="rule-highlight blue">奖金将在好友活跃达标后自动解冻 (T+1)。</div>
+            </div>
+            <div class="milestone-scroll">
+                <div class="milestone-card invite-theme" style="opacity:0.6; filter:grayscale(1); border:1px solid #333;">
+                    <div class="ms-target">首单开户</div><div class="ms-icon">🤝</div><div class="ms-val">邀请 <b>1人</b> 奖 <span>R$ 5</span></div><div class="loop-progress-bar"><div class="loop-progress-fill" style="width: 100%;"></div></div><div style="font-size:9px; color:#ccc;">已完成</div><button class="btn-claim" style="background:#333; color:#666; cursor:default;">已领</button>
+                </div>
+                <div class="milestone-card invite-theme active" id="inv-card-2">
+                    <div class="bonus-corner">+R$ 4</div>
+                    <div style="position:absolute; top:0; left:0; background:var(--color-invite-blue); color:#fff; font-size:9px; padding:2px 6px; border-radius:14px 0 10px 0; font-weight:bold;">已达标</div><div class="ms-target" style="color:var(--color-invite-blue)">初级推广</div><div class="ms-icon">📢</div><div class="ms-val">邀请 <b>3人</b> 奖 <span>R$ 20</span></div><div class="loop-progress-bar"><div class="loop-progress-fill" style="width: 100%;"></div></div><div class="progress-text"><span>3 / 3</span><span>待领取</span></div><button class="btn-claim ready" onclick="claimBonus(this, 20, 'inv-card-3', false, 4)">领取奖励</button>
+                </div>
+                <div class="milestone-card invite-theme active" id="inv-card-3" style="border-color:#333; box-shadow:none;">
+                    <div class="bonus-corner">+R$ 16</div>
+                    <div class="ms-target">资深代理</div><div class="ms-icon">🔥</div><div class="ms-val">邀请 <b>10人</b> 奖 <span>R$ 80</span></div><div class="loop-progress-bar"><div class="loop-progress-fill" style="width: 70%;"></div></div><div class="progress-text"><span>7 / 10</span><span>加油!</span></div><button class="btn-claim" style="background:#333; color:#666;">进行中</button>
+                </div>
+                <div class="milestone-card invite-theme" style="opacity:0.5; filter:grayscale(1);">
+                    <div class="bonus-corner">+R$ 60</div>
+                    <div class="ms-target">渠道经理</div><div class="ms-icon">💼</div><div class="ms-val">邀请 <b>30人</b> 奖 <span>R$ 300</span></div><div class="next-goal-text">需累计邀请 30 人</div>
+                </div>
+                <div class="milestone-card invite-theme" style="opacity:0.5; filter:grayscale(1);">
+                    <div class="bonus-corner">+R$ 300</div>
+                    <div class="ms-target">团队总监</div><div class="ms-icon">👑</div><div class="ms-val">邀请 <b>50人</b> 奖 <span>R$ 1.500</span></div><div class="next-goal-text">需累计邀请 50 人</div>
+                </div>
+                <div class="milestone-card invite-theme" style="opacity:0.5; filter:grayscale(1);">
+                    <div class="bonus-corner">+R$ 1K</div>
+                    <div class="ms-target">顶级合伙人</div><div class="ms-icon">💎</div><div class="ms-val">邀请 <b>100人</b> 奖 <span>R$ 5.000</span></div><div class="next-goal-text">需累计邀请 100 人</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="mc-turnover" class="mission-container real-data-container">
+            <div class="milestone-desc">
+                团队流水每达标一级，领一次现金！最高可获 <b>R$ 150.000</b>
+                <div class="rule-highlight purple">阶段越高，单次奖励金额越大！</div>
+            </div>
+            <div class="milestone-scroll" id="scrollContainer">
+                <div class="milestone-card bronze-theme active" id="turn-card-1" style="border: 2px solid #CD7F32;"><div style="position:absolute; top:0; left:0; background:#CD7F32; color:#fff; font-size:9px; padding:2px 6px; border-radius:14px 0 10px 0; font-weight:bold;">进行中</div><div class="ms-target" style="color:var(--color-bronze); font-size:14px;">青铜代理</div><div class="tier-total-tag">本阶总奖: R$ 100</div><div class="ms-val">每 <b>1万</b> 奖 <span>R$ 20</span></div>
+                <div class="node-progress-wrapper">
+                    <div class="node-progress-track"></div>
+                    <div class="node-progress-fill" style="width: 20%;"></div>
+                    <div class="node-dots">
+                        <div class="node-dot active"></div><div class="node-dot"></div><div class="node-dot"></div><div class="node-dot"></div><div class="node-dot"></div>
+                    </div>
+                </div>
+                <div class="progress-text" id="turn-txt-1"><span>10.000 / 50.000</span></div>
+                <button class="btn-claim ready" onclick="claimTurnover(this)">领取奖励</button></div>
+                
+                <div class="milestone-card silver-theme" id="turn-card-2" style="opacity:0.5; filter:grayscale(1);"><div style="position:absolute; top:0; right:0; background:#333; color:#888; font-size:9px; padding:2px 6px; border-radius:0 0 0 6px;" class="lock-tag">🔒 待解锁</div><div class="ms-target" style="color:var(--color-silver); font-size:14px;">白银代理</div><div class="tier-total-tag">本阶总奖: R$ 1.000</div><div class="ms-val">每 <b>2万</b> 奖 <span>R$ 50</span></div><div class="loop-progress-bar"><div class="loop-progress-fill" style="width: 0%;"></div></div><button class="btn-claim" style="background:#333;">待解锁</button></div>
+                <div class="milestone-card gold-theme" id="turn-card-3" style="opacity:0.5; filter:grayscale(1);"><div style="position:absolute; top:0; right:0; background:#333; color:#888; font-size:9px; padding:2px 6px; border-radius:0 0 0 6px;" class="lock-tag">🔒 待解锁</div><div class="ms-target" style="color:var(--color-gold); font-size:14px;">黄金代理</div><div class="tier-total-tag">本阶总奖: R$ 4.500</div><div class="ms-val">每 <b>5万</b> 奖 <span>R$ 150</span></div><div class="loop-progress-bar"><div class="loop-progress-fill" style="width: 0%;"></div></div><button class="btn-claim" style="background:#333;">待解锁</button></div>
+                <div class="milestone-card diamond-theme" id="turn-card-4" style="opacity:0.5; filter:grayscale(1);"><div style="position:absolute; top:0; right:0; background:#333; color:#888; font-size:9px; padding:2px 6px; border-radius:0 0 0 6px;" class="lock-tag">🔒 待解锁</div><div class="ms-target" style="color:var(--color-epic); font-size:14px;">钻石总代</div><div class="tier-total-tag">本阶总奖: R$ 15.000</div><div class="ms-val">每 <b>10万</b> 奖 <span>R$ 300</span></div><div class="loop-progress-bar"><div class="loop-progress-fill" style="width: 0%;"></div></div><button class="btn-claim" style="background:#333;">待解锁</button></div>
+                <div class="milestone-card partner-theme" id="turn-card-5" style="opacity:0.5; filter:grayscale(1);"><div style="position:absolute; top:0; right:0; background:#333; color:#888; font-size:9px; padding:2px 6px; border-radius:0 0 0 6px;" class="lock-tag">🔒 待解锁</div><div class="ms-target" style="color:var(--color-legend); font-size:14px;">首席合伙人</div><div class="tier-total-tag">本阶总奖: 无上限</div><div class="ms-val">每 <b>50万</b> 奖 <span>R$ 1.600</span></div><div class="loop-progress-bar"><div class="loop-progress-fill" style="width: 0%;"></div></div><button class="btn-claim" style="background:#333;">待解锁</button></div>
+            </div>
+        </div>
+
+        <div class="section-label">多级返佣体系</div>
+        <div class="commission-box real-data-container">
+            <div class="milestone-desc" style="padding: 0;">
+                建立您的无限奖金获取途径！只要下级玩家进行投注，您即可获得返佣。
+                <div class="rule-highlight gold">收益公式 = (1级流水×0.4%) + (2级流水×0.2%) + (3级流水×0.1%)</div>
+            </div>
+            <div class="tree-visual">
+                <svg width="240" height="120" viewBox="0 0 240 120">
+                    <line x1="120" y1="20" x2="60" y2="70" stroke="#00ce52" stroke-width="2" /><line x1="120" y1="20" x2="120" y2="70" stroke="#00ce52" stroke-width="2" /><line x1="120" y1="20" x2="180" y2="70" stroke="#00ce52" stroke-width="2" />
+                    <line x1="60" y1="70" x2="40" y2="100" stroke="#C0C0C0" stroke-width="1" /><line x1="60" y1="70" x2="80" y2="100" stroke="#C0C0C0" stroke-width="1" /><line x1="120" y1="70" x2="120" y2="100" stroke="#C0C0C0" stroke-width="1" /><line x1="180" y1="70" x2="160" y2="100" stroke="#C0C0C0" stroke-width="1" /><line x1="180" y1="70" x2="200" y2="100" stroke="#C0C0C0" stroke-width="1" />
+                    <circle cx="120" cy="20" r="12" fill="#FFD700" stroke="#fff" stroke-width="2" /><text x="140" y="25" fill="#FFD700" font-size="12" font-weight="bold">您 (Root)</text>
+                    <circle cx="60" cy="70" r="8" fill="#00ce52" /><circle cx="120" cy="70" r="8" fill="#00ce52" /><circle cx="180" cy="70" r="8" fill="#00ce52" />
+                    <circle cx="40" cy="100" r="5" fill="#C0C0C0" /><circle cx="80" cy="100" r="5" fill="#C0C0C0" /><circle cx="120" cy="100" r="5" fill="#C0C0C0" /><circle cx="160" cy="100" r="5" fill="#C0C0C0" /><circle cx="200" cy="100" r="5" fill="#C0C0C0" />
+                </svg>
+            </div>
+            <div class="rate-grid">
+                <div class="rate-card"><div class="rc-level l1-tag">1级代理</div><div class="rc-title">直属玩家</div><div class="rc-val">0.4%</div></div>
+                <div class="rate-card"><div class="rc-level l2-tag">2级代理</div><div class="rc-title">间接邀请</div><div class="rc-val">0.2%</div></div>
+                <div class="rate-card"><div class="rc-level l3-tag">3级代理</div><div class="rc-title">深层裂变</div><div class="rc-val">0.1%</div></div>
+            </div>
+        </div>
+
+        <div class="calc-card real-data-container">
+            <div class="calc-header">📊 收益预测计算器</div>
+            <div class="calc-row">
+                <div class="calc-label"><span>直推人数</span><span id="txt-people" style="color:var(--color-gold)">50 人</span></div>
+                <input type="range" min="1" max="1000" value="50" class="calc-slider" id="calc-people" oninput="updateCalc()">
+            </div>
+            <div class="calc-row">
+                <div class="calc-label"><span>人均日流</span><span id="txt-bet" style="color:var(--color-gold)">R$ 500</span></div>
+                <input type="range" min="10" max="5000" value="500" class="calc-slider" id="calc-bet" oninput="updateCalc()">
+            </div>
+            <div class="calc-result-box">
+                <div class="calc-res-label">预计月收入 (保守估算)</div>
+                <div class="calc-res-val" id="calc-result">R$ 3.000,00</div>
+            </div>
+        </div>
+
+        <div class="empty-state-box"><div class="empty-text">暂无邀请数据</div></div>
+    </div>
+
+    <div id="module-stats" class="view-module">
+        <div class="hero-section-sticky">
+            <div class="balance-wrap">
+                <div class="label">可提现金额 (R$)</div>
+                <div class="amount" id="heroAmount">1.245,50</div>
+                <div class="limit-info-text">最低: R$ 20,00 &nbsp;|&nbsp; <span id="dailyLimitText">今日上限: R$ 5.000,00</span></div>
+            </div>
+            <div class="hero-actions">
+                 <button class="btn-action btn-transfer" onclick="handleTransfer(this)">🎮 转入游戏</button>
+                 <button class="btn-action btn-withdraw" onclick="handleWithdraw(this)">💸 立即提现</button>
+            </div>
+        </div>
+
+        <div class="section-label real-data-container">代理等级特权</div>
+        <div class="agent-level-card real-data-container">
+            <div class="al-header">
+                <div class="al-title">👶 普通代理</div>
+                <div class="al-info-icon" onclick="toggleBenefitsModal()">权益说明 ⓘ</div>
+            </div>
+            <div class="al-progress-text"><span>有效邀请: 3 / 10</span><span>进度 30%</span></div>
+            <div class="al-bar-bg"><div class="al-bar-fill" style="width:30%"></div></div>
+            <div class="al-next-tip">下一级: 初级代理 (需邀请10人)</div>
+        </div>
+        
+        <div class="section-label real-data-container">今日盈利构成</div>
+        <div class="chart-box-enhanced real-data-container">
+            <div style="font-size:11px; color:#888; display:flex; justify-content:space-between; margin-bottom:10px;"><span>近7日收益趋势</span><span style="color:var(--color-green)">+12.5% 📈</span></div>
+            <div class="svg-container">
+                <svg class="svg-chart" viewBox="0 0 300 100" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="gradientGold" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#FFD700" stop-opacity="0.4"/>
+                            <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+                        </linearGradient>
+                    </defs>
+                    <path class="area-path" d="M0,100 L0,70 L50,40 L100,55 L150,20 L200,45 L250,15 L300,30 L300,100 Z" />
+                    <path class="line-path" d="M0,70 L50,40 L100,55 L150,20 L200,45 L250,15 L300,30" vector-effect="non-scaling-stroke" />
+                    <circle cx="0" cy="70" r="3" class="chart-dot" />
+                    <circle cx="50" cy="40" r="3" class="chart-dot" />
+                    <circle cx="100" cy="55" r="3" class="chart-dot" />
+                    <circle cx="150" cy="20" r="3" class="chart-dot" />
+                    <circle cx="200" cy="45" r="3" class="chart-dot" />
+                    <circle cx="250" cy="15" r="3" class="chart-dot" />
+                    <circle cx="300" cy="30" r="3" class="chart-dot" />
+                </svg>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:5px; padding:0 5px;">
+                <span class="t-date">M</span><span class="t-date">T</span><span class="t-date">W</span><span class="t-date">T</span><span class="t-date">F</span><span class="t-date">S</span><span class="t-date" style="color:var(--color-gold)">S</span>
+            </div>
+        </div>
+
+        <div class="chart-card-container real-data-container">
+            <div class="chart-card">
+                <div class="donut-wrapper">
+                    <div class="donut-chart" id="statChart"><div class="donut-inner"><span class="donut-total-label">今日总计</span><span class="donut-total-val">R$ 480,00</span></div></div>
+                    <div class="chart-legend">
+                        <div class="legend-item"><div class="legend-info"><div class="dot" style="background:var(--color-green)"></div>邀请奖金</div><div class="legend-val">R$ 200,00</div></div>
+                        <div class="legend-item"><div class="legend-info"><div class="dot" style="background:var(--color-blue)"></div>团队投注奖金</div><div class="legend-val">R$ 230,00</div></div>
+                        <div class="legend-item"><div class="legend-info"><div class="dot" style="background:var(--color-orange)"></div>多级返佣奖金</div><div class="legend-val">R$ 50,00</div></div>
+                        <div class="legend-item"><div class="legend-info"><div class="dot" style="background:var(--color-epic)"></div>额外奖金</div><div class="legend-val">R$ 0,00</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-label real-data-container">历史累计</div>
+        <div class="real-data-container">
+            <div class="history-grid">
+                <div class="history-card gold-highlight"><div class="h-label" style="color: var(--color-gold);">🔥 历史总盈利</div><div class="h-val highlight" id="hist-total">R$ 18.450,00</div></div>
+                <div class="history-card"><div class="h-label">累计邀请奖金</div><div class="h-val highlight" id="hist-invite">R$ 5.200,00</div></div>
+                <div class="history-card"><div class="h-label">累计团队投注奖金</div><div class="h-val highlight" id="hist-bet">R$ 12.450,00</div></div>
+                <div class="history-card"><div class="h-label">累计多级返佣奖金</div><div class="h-val highlight" id="hist-multilevel">R$ 800,00</div></div>
+                <div class="history-card"><div class="h-label">累计额外奖金</div><div class="h-val highlight" style="color:var(--color-gold)">R$ 0,00</div></div>
+                <div class="history-card"><div class="h-label">累计有效下级人数</div><div class="h-val" id="hist-dep">142</div></div>
+                <div class="history-card"><div class="h-label">累计无效下级人数</div><div class="h-val gray">35</div></div>
+            </div>
+        </div>
+
+        <div class="section-label real-data-container">下级详情</div>
+        <div class="sub-grid-container real-data-container">
+            <div class="sub-stat-box">
+                <div class="sub-label">总人数</div>
+                <div class="sub-num">177</div>
+            </div>
+            <div class="sub-stat-box">
+                <div class="sub-label">在线人数</div>
+                <div class="sub-num green">42</div>
+            </div>
+            <div class="sub-stat-box">
+                <div class="sub-label">不活跃人数</div>
+                <div class="sub-num red">35</div>
+            </div>
+            <div class="sub-stat-box">
+                <div class="sub-label">预计损失佣金</div>
+                <div class="sub-num loss-highlight">R$ 150,00</div>
+            </div>
+        </div>
+        <div class="wake-up-section real-data-container">
+            <button class="wake-up-btn" onclick="sendWakeUpMsg()">🔔 一键发送唤醒消息</button>
+        </div>
+
+        <div class="empty-state-box"><div class="empty-text">暂无统计数据</div></div>
+    </div>
+    
+    <div id="module-rank" class="view-module">
+        <div class="section-label" style="margin-top:15px;">顶级代理</div>
+        
+        <div class="leaderboard-container real-data-container" style="padding-bottom:0;">
+            <div class="milestone-desc" style="padding: 0;">
+                排行竞赛期间获得佣金达到指定额度可以参加排行榜。当前排名结束后获得佣金重新计算，奖金直接发放到余额。
+                <div class="rule-highlight gold">排行榜每5分钟刷新一次。</div>
+            </div>
+        </div>
+
+        <div class="sticky-header-container" style="padding:10px 20px 0;">
+            <div class="rank-tabs">
+                <div class="rank-tab active" onclick="switchRankTab(this, 'day')">日榜</div>
+                <div class="rank-tab" onclick="switchRankTab(this, 'week')">周榜</div>
+                <div class="rank-tab" onclick="switchRankTab(this, 'month')">月榜</div>
+            </div>
+            <div id="rank-timer-label" class="rank-timer-display" style="margin-bottom:15px;">本期结算倒计时: <span id="rankTimer">--:--:--</span></div>
+            
+            <div class="rank-user-status">
+                <div class="rus-left">
+                    <div style="color:#ccc">当前竞赛周期累计佣金</div>
+                    <div class="rus-val" id="myRankComm">R$ 850,00</div>
+                </div>
+                <div class="rus-right">
+                    <div id="myRankDisplay">排名: <span style="color:#888">未上榜</span></div>
+                    <div style="font-size:9px; margin-top:2px;">上榜门槛: R$ 1.000</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="leaderboard-container real-data-container" style="padding-top:0;">
+            <div id="rankListContent">
+                </div>
+        </div>
+    </div>
+
+    <div id="module-finance" class="view-module">
+        <div class="sticky-header-container" style="padding:0; margin:0; border:none; box-shadow:none;">
+            <div class="date-filter-box">
+                <div class="date-inputs"><div class="date-field"><div class="date-label">开始日期</div><input type="date" class="date-input" id="dateStart"></div><div class="date-field"><div class="date-label">结束日期</div><input type="date" class="date-input" id="dateEnd"></div></div>
+                <button class="btn-filter" onclick="queryFinance(this)">查询</button>
+            </div>
+        </div>
+        
+        <div class="finance-list real-data-container" id="financeList">
+            <div class="comm-card st-pending">
+                <div class="cc-header"><div><div class="cc-title">邀请奖励</div><div class="cc-user">用户: Player_888</div></div><div class="cc-amount">+ R$ 5,00</div></div>
+                <div class="cc-status-row"><div class="status-badge">⏳ 审核中 <span class="countdown" id="timer1">23:58:12</span></div><div class="status-desc">预计 T+1 解冻</div></div>
+                <div class="detail-row"><span>状态: 等待 T+1 解冻</span><span>10-24 15:00</span></div>
+            </div>
+            <div class="comm-card st-bet">
+                <div class="cc-header"><div><div class="cc-title">游戏分红结算</div><div class="cc-user">用户: HighRoller_99</div></div><div class="cc-amount profit-positive">+ R$ 20,00</div></div>
+                <div class="cc-status-row"><div class="status-badge" style="color:#ccc; font-weight:normal">投注: R$ 1.000</div><div class="status-desc" style="color:#fff">派彩: R$ 800</div></div>
+                <div class="detail-row"><span>平台盈利: R$ 200</span><span>10-24 13:45</span></div>
+            </div>
+            <div class="comm-card st-success">
+                <div class="cc-header"><div><div class="cc-title">邀请奖励</div><div class="cc-user">用户: Winner_King</div></div><div class="cc-amount">+ R$ 5,00</div></div>
+                <div class="cc-status-row"><div class="status-badge">✅ 已发放</div><div class="status-desc">资金已到账</div></div>
+                <div class="detail-row"><span>状态: 审核通过</span><span>10-24 14:30</span></div>
+            </div>
+            <div class="comm-card st-withdraw success">
+                <div class="cc-header"><div><div class="cc-title">提现 - PIX</div><div class="cc-user">单号: W-20241024-01</div></div><div class="cc-amount">- R$ 500,00</div></div>
+                <div class="cc-status-row"><div class="status-badge">✅ 提现成功</div><div class="status-desc">已汇出</div></div>
+                <div class="detail-row"><span>状态: 汇款成功</span><span>10-24 12:00</span></div>
+            </div>
+            <div class="comm-card st-withdraw fail">
+                <div class="cc-header"><div><div class="cc-title">提现申请</div><div class="cc-user">单号: W-20241023-99</div></div><div class="cc-amount">- R$ 200,00</div></div>
+                <div class="cc-status-row"><div class="status-badge">❌ 提现退回</div><div class="status-desc">银行信息错误</div></div>
+                <div class="detail-row"><span>结果: 资金已退回余额</span><span>10-23 18:00</span></div>
+            </div>
+            <div class="comm-card st-fail">
+                <div class="cc-header"><div><div class="cc-title">佣金取消</div><div class="cc-user">用户: Scammer_007</div></div><div class="cc-amount">+ R$ 5,00</div></div>
+                <div class="cc-status-row"><div class="status-badge">🚫 异常拦截</div><div class="status-desc">检测到刷单行为</div></div>
+                <div class="detail-row"><span>结果: 佣金作废</span><span>10-23 10:00</span></div>
+            </div>
+            <div class="comm-card st-fail">
+                <div class="cc-header"><div><div class="cc-title">佣金冻结</div><div class="cc-user">用户: Banned_User</div></div><div class="cc-amount">+ R$ 5,00</div></div>
+                <div class="cc-status-row"><div class="status-badge">❄️ 账号封禁</div><div class="status-desc">关联用户严重违规</div></div>
+                <div class="detail-row"><span>结果: 佣金作废</span><span>10-22 09:00</span></div>
+            </div>
+        </div>
+        <div class="empty-state-box"><div class="empty-text">暂无资金记录</div></div>
+    </div>
+
+</div>
+
+<script>
+    // 1. 撒花特效
+    const confettiCanvas = document.getElementById('confetti-canvas');
+    const ctx = confettiCanvas.getContext('2d');
+    let particles = [];
+    function resizeCanvas() { confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight; }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    function createParticle() { return { x: Math.random() * confettiCanvas.width, y: Math.random() * confettiCanvas.height - confettiCanvas.height, vx: Math.random() * 4 - 2, vy: Math.random() * 4 + 4, color: `hsl(${Math.random() * 360}, 100%, 50%)`, size: Math.random() * 5 + 2 }; }
+    function startConfetti() { particles = []; for (let i = 0; i < 150; i++) particles.push(createParticle()); animateConfetti(); }
+    function animateConfetti() { ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height); particles.forEach((p, index) => { p.x += p.vx; p.y += p.vy; if (p.y > confettiCanvas.height) particles.splice(index, 1); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); }); if (particles.length > 0) requestAnimationFrame(animateConfetti); }
+
+    // 2. 数字滚动
+    function animateValue(obj, start, end, duration) {
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            const current = start + (end - start) * progress;
+            obj.textContent = current.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            if (progress < 1) window.requestAnimationFrame(step);
+        };
+        window.requestAnimationFrame(step);
+    }
+
+    // 3. 复制分享
+    function copyShareLink(platform) {
+        const baseUrl = "https://game.com/u/8888";
+        const finalUrl = `${baseUrl}?src=${platform}`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(finalUrl).then(() => { showToast(`${platform.toUpperCase()} 专属链接已复制`); }).catch(() => {});
+        } else { showToast(`${platform.toUpperCase()} 专属链接已复制`); }
+    }
+
+    // 4. 佣金计算器
+    function updateCalc() {
+        const p = document.getElementById('calc-people').value;
+        const b = document.getElementById('calc-bet').value;
+        document.getElementById('txt-people').textContent = p + " 人";
+        document.getElementById('txt-bet').textContent = "R$ " + b;
+        const val = p * b * 0.004 * 30;
+        document.getElementById('calc-result').textContent = "R$ " + val.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    // 5. 核心：Tab 切换逻辑
+    function switchModule(moduleName) {
+        document.querySelectorAll('.view-module').forEach(el => el.classList.remove('active'));
+        document.getElementById('module-' + moduleName).classList.add('active');
+        document.querySelectorAll('.nav-tab-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + moduleName).classList.add('active');
+        
+        if(moduleName === 'stats') adjustAmountFontSize();
+        if(moduleName === 'rank') {
+            if(!document.getElementById('rankListContent').innerHTML.trim()) {
+                 switchRankTab(document.querySelector('.rank-tab.active'), 'day');
+            }
+        }
+    }
+    
+    // 6. 任务Tab切换
+    function switchMissionTab(tabName) {
+        document.querySelectorAll('.m-tab').forEach(el => el.classList.remove('active'));
+        document.getElementById('mt-' + tabName).classList.add('active');
+        if(tabName === 'invite') document.getElementById('mt-invite').classList.add('tab-invite');
+        if(tabName === 'turnover') document.getElementById('mt-turnover').classList.add('tab-turnover');
+        document.querySelectorAll('.mission-container').forEach(el => el.classList.remove('active'));
+        document.getElementById('mc-' + tabName).classList.add('active');
+    }
+
+    function toggleBenefitsModal() { document.getElementById('benefitsModal').classList.toggle('active'); }
+    function checkCSPrivilege() { showToast('🔒 需升级至 [初级代理] 开启 1V1 专属客服'); }
+
+    let toastTimeout;
+    function showToast(msg) {
+        const t = document.getElementById('toastMsg');
+        const txt = document.getElementById('toastText');
+        if(!t || !txt) return;
+        txt.textContent = msg;
+        t.classList.remove('show');
+        void t.offsetWidth; 
+        t.classList.add('show');
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => { t.classList.remove('show'); }, 2000);
+    }
+    
+    let dailyLimit = 5000.00;
+    let currentActionType = '';
+
+    // 7. 资金弹窗逻辑
+    function handleTransfer(btn) { openAmountModal('transfer', btn); }
+    function handleWithdraw(btn) { openAmountModal('withdraw', btn); }
+
+    function openAmountModal(type, btn) {
+        if(btn.disabled) return;
+        currentActionType = type;
+        const modal = document.getElementById('amountModal');
+        const title = document.getElementById('amtModalTitle');
+        const warning = document.getElementById('amtWarning');
+        const balanceSpan = document.getElementById('modalBalance');
+        const input = document.getElementById('fundAmount');
+        
+        const amtEl = document.getElementById('heroAmount');
+        balanceSpan.textContent = amtEl.textContent;
+        input.value = ''; 
+        modal.classList.add('active');
+        
+        if (type === 'transfer') {
+            title.textContent = '转入游戏账户';
+            warning.style.display = 'block';
+        } else {
+            title.textContent = '申请提现';
+            warning.style.display = 'none';
+        }
+    }
+
+    function closeAmountModal() { document.getElementById('amountModal').classList.remove('active'); }
+    function setAllAmount() {
+        const amtEl = document.getElementById('heroAmount');
+        let currentBalance = parseFloat(amtEl.textContent.replace(/\./g, '').replace(',', '.'));
+        document.getElementById('fundAmount').value = currentBalance.toFixed(2);
+    }
+
+    function confirmFundAction() {
+        const input = document.getElementById('fundAmount');
+        const amount = parseFloat(input.value);
+        const amtEl = document.getElementById('heroAmount');
+        let currentBalance = parseFloat(amtEl.textContent.replace(/\./g, '').replace(',', '.'));
+
+        if (isNaN(amount) || amount < 20) { showToast('❌ 最低操作金额 R$ 20,00'); return; }
+        if (amount > currentBalance) { showToast('❌ 余额不足'); return; }
+        if (amount > dailyLimit) { showToast(`⚠️ 超过今日剩余额度 (R$ ${dailyLimit.toLocaleString('pt-BR', {minimumFractionDigits: 2})})`); return; }
+
+        closeAmountModal();
+        showToast('⏳ 处理中...');
+        
+        setTimeout(() => {
+            const actionName = currentActionType === 'withdraw' ? '提现' : '转入';
+            showToast(`✅ ${actionName}申请已提交`);
+            startConfetti(); 
+
+            dailyLimit -= amount;
+            document.getElementById('dailyLimitText').textContent = '今日上限: R$ ' + dailyLimit.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+            
+            let newBalance = currentBalance - amount;
+            animateValue(amtEl, currentBalance, newBalance, 800);
+            
+            const now = new Date();
+            const timeStr = `${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+            const title = currentActionType === 'withdraw' ? '提现申请 (PIX)' : '转入游戏账户';
+            
+            const newRecord = `
+            <div class="comm-card st-withdraw pending" style="animation: fadeIn 0.5s">
+                <div class="cc-header"><div><div class="cc-title">${title}</div><div class="cc-user">单号: W-${now.getTime()}</div></div><div class="cc-amount st-pending">- R$ ${amount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div></div>
+                <div class="cc-status-row"><div class="status-badge st-pending" style="color:var(--color-orange)">⏳ 处理中</div><div class="status-desc">财务处理中</div></div>
+                <div class="detail-row"><span>状态: 等待处理</span><span>${timeStr}</span></div>
+            </div>`;
+            const list = document.getElementById('financeList');
+            if(list) list.insertAdjacentHTML('afterbegin', newRecord);
+        }, 1500);
+    }
+    
+    let currentPaid = 120.00;
+    let claiming = false;
+    function claimBonus(btn, amount, nextCardId, isTurnover, extra = 0) {
+        if(claiming || btn.disabled || !btn.classList.contains('ready')) return;
+        claiming = true;
+        const originalText = btn.textContent;
+        btn.textContent = '...';
+        btn.style.opacity = '0.7';
+        setTimeout(() => {
+            btn.textContent = '已领取';
+            btn.classList.remove('ready');
+            btn.style.background = '#333';
+            btn.style.color = '#666';
+            btn.style.opacity = '1';
+            btn.disabled = true;
+            let total = amount + extra;
+            showToast(`成功领取 R$ ${total} !`);
+            startConfetti(); 
+            
+            const oldPaid = currentPaid;
+            currentPaid += total;
+            const paidEl = document.getElementById('inv-val-bonus-paid');
+            if(paidEl) { animateValue(paidEl, oldPaid, currentPaid, 1000); paidEl.classList.add('pulse-text'); setTimeout(() => paidEl.classList.remove('pulse-text'), 500); }
+            
+            const heroAmtEl = document.getElementById('heroAmount');
+            if(heroAmtEl) {
+                let currentBalanceStr = heroAmtEl.textContent.trim();
+                let currentBalance = parseFloat(currentBalanceStr.replace(/\./g, '').replace(',', '.'));
+                let newBalance = currentBalance + total;
+                animateValue(heroAmtEl, currentBalance, newBalance, 1000);
+            }
+
+            const parentCard = btn.closest('.milestone-card');
+            if(parentCard && !isTurnover) {
+                parentCard.classList.remove('active'); parentCard.style.opacity = '0.6'; parentCard.style.filter = 'grayscale(1)'; parentCard.style.border = '1px solid #333'; parentCard.style.boxShadow = 'none';
+                const corner = parentCard.querySelector('.bonus-corner'); if(corner) corner.style.display = 'none';
+                const badge = parentCard.querySelector('div[style*="position:absolute"]'); if(badge) badge.style.display = 'none';
+                const progText = parentCard.querySelector('.progress-text'); if(progText) progText.style.visibility = 'hidden';
+            }
+            if(isTurnover) {
+                 const card = btn.closest('.milestone-card');
+                 if(card) {
+                    const barEl = card.querySelector('.node-progress-fill');
+                    const textEl = card.querySelector('.progress-text');
+                    
+                    if(textEl) textEl.style.visibility = 'visible'; 
+                    if(barEl) barEl.style.width = '22.6%'; 
+                    if(textEl) textEl.innerHTML = '<span>11.325 / 50.000</span>';
+                    
+                    card.style.opacity = '1'; 
+                    card.style.filter = 'none'; 
+                    card.classList.add('active');
+                    
+                    setTimeout(() => { 
+                        btn.textContent = '进行中'; 
+                        btn.style.cssText = 'background:#333 !important; color:#888 !important; opacity:1 !important; cursor:default; z-index:10;'; 
+                        btn.disabled = true; 
+                    }, 50);
+                 }
+            } else if(nextCardId) {
+                const nextCard = document.getElementById(nextCardId);
+                if(nextCard) { nextCard.style.opacity = '1'; nextCard.style.filter = 'none'; nextCard.querySelector('.lock-tag').style.display = 'none'; nextCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }
+            }
+            claiming = false;
+        }, 600);
+    }
+    
+    function claimTurnover(btn) {
+        claimBonus(btn, 20, null, true);
+    }
+    
+    function queryFinance(btn) {
+        const originalText = btn.textContent;
+        btn.textContent = '查询中...';
+        btn.style.opacity = '0.7';
+        const list = document.getElementById('financeList');
+        list.style.opacity = '0.5'; 
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.opacity = '1';
+            list.style.opacity = '1';
+            const cards = Array.from(list.children);
+            if(cards.length > 2) { list.insertBefore(cards[2], list.firstChild); }
+            showToast('报表已更新');
+        }, 800);
+    }
+
+    function copyInput(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(el.value).then(() => { showToast('链接已复制！'); }).catch(() => { el.select(); document.execCommand('copy'); showToast('链接已复制！'); }); } else { el.select(); document.execCommand('copy'); showToast('链接已复制！'); }
+    }
+
+    function adjustAmountFontSize() {
+        const containerEl = document.getElementById('heroAmount');
+        if (!containerEl) return;
+        const len = containerEl.textContent.trim().length;
+        containerEl.style.fontSize = len < 12 ? '48px' : (len <= 16 ? '36px' : '28px');
+    }
+
+    let rankTimers = { day: 45000, week: 3*86400+4*3600, month: 12*86400+9*3600 };
+    let currentPeriod = 'day';
+
+    function formatTime(totalSeconds) {
+        const d = Math.floor(totalSeconds / 86400); const h = Math.floor((totalSeconds % 86400) / 3600).toString().padStart(2, '0'); const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0'); const s = (totalSeconds % 60).toString().padStart(2, '0');
+        if (d > 0) return `${d}天 ${h}:${m}:${s}`; return `${h}:${m}:${s}`;
+    }
+
+    // [iOS优化] 增加touchstart监听，解决部分iOS机型点击无效
+    document.addEventListener('touchstart', function() {}, false);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const today = new Date().toISOString().split('T')[0];
+        if(document.getElementById('dateStart')) document.getElementById('dateStart').value = today;
+        if(document.getElementById('dateEnd')) document.getElementById('dateEnd').value = today;
+        adjustAmountFontSize();
+        startGlobalTimers();
+        const scrollC = document.getElementById('scrollContainer');
+        if(scrollC) scrollC.scrollLeft = 0;
+        // 初始化一次榜单
+        switchRankTab(document.querySelector('.rank-tab.active'), 'day');
+        switchModule('invite');
+    });
+</script>
+</body>
+</html>
